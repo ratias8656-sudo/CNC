@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>צופה קודי CNC</title>
+<style>
+  :root {
+    --bg: #f4f2ee;
+    --panel: #ffffff;
+    --line: #e2ded6;
+    --text: #23211d;
+    --muted: #6d675d;
+    --accent: #1f6feb;
+    --accent-soft: #e6efff;
+    --ok: #1a7f37;
+    --code-bg: #fbfaf8;
+    --hl: #fff1a8;
+    --sel: #e6efff;
+    --c-g: #1f5fd1;
+    --c-m: #c2410c;
+    --c-ax: #23211d;
+    --c-arc: #7c3aed;
+    --c-fs: #0f766e;
+    --c-t: #b91c1c;
+    --c-n: #9a948a;
+    --c-cm: #6d8a3a;
+    --c-p: #57534e;
+    --code-size: 17px;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body { min-height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif; font-size: 17px;
+  }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- כותרת עליונה ---------- */
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 22px; margin: 0; margin-inline-end: auto; display: flex; align-items: center; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    padding: 9px 16px; border-radius: 10px; font-size: 16px;
+  }
+  .btn:hover { background: #f1efea; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { background: #1a5fd0; }
+  .btn.big { font-size: 20px; padding: 14px 26px; border-radius: 14px; }
+  .btn.small { font-size: 14px; padding: 6px 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); padding: 9px 14px; font-size: 15px; }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  /* ---------- פריסה ---------- */
+  main { display: grid; grid-template-columns: 320px minmax(0, 1fr) 330px; gap: 14px; padding: 14px; height: calc(100vh - 66px); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; }
+  .panel-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .panel-head h2 { font-size: 17px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .scroll { overflow: auto; min-height: 0; flex: 1; }
+
+  /* ---------- רשימת קבצים ---------- */
+  .search { width: 100%; padding: 10px 12px; font-size: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .search:focus { outline: 2px solid var(--accent); background: #fff; }
+  .folder-name { font-size: 14px; color: var(--muted); margin-top: 8px; overflow-wrap: anywhere; }
+  .file-list { list-style: none; margin: 0; padding: 8px; }
+  .file {
+    padding: 12px 14px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; margin-bottom: 4px;
+  }
+  .file:hover { background: #f6f4f0; }
+  .file.active { background: var(--accent-soft); border-color: var(--accent); }
+  .file .nm { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+  .file .meta { font-size: 14px; color: var(--muted); margin-top: 3px; direction: rtl; overflow-wrap: anywhere; }
+  .file .meta bdi { direction: ltr; }
+  .tag { display: inline-block; font-size: 12px; background: #eef7ee; color: var(--ok); border-radius: 6px; padding: 1px 6px; margin-inline-start: 6px; vertical-align: middle; font-weight: 600; }
+  .count { font-size: 14px; color: var(--muted); padding: 4px 16px 10px; }
+
+  /* ---------- תצוגת קוד ---------- */
+  .viewer-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .viewer-title { flex: 1; min-width: 200px; }
+  .viewer-title h2 { margin: 0; font-size: 24px; overflow-wrap: anywhere; }
+  .viewer-title .sub { color: var(--muted); font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { background: var(--bg); border-radius: 8px; padding: 3px 10px; font-size: 14px; color: var(--muted); }
+  .tools-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  .code { direction: ltr; text-align: left; background: var(--code-bg); font-family: Consolas, "Cascadia Mono", "Courier New", monospace; font-size: var(--code-size); line-height: 1.6; padding: 8px 0; border-radius: 0 0 var(--radius) var(--radius); }
+  .ln { display: flex; white-space: pre; cursor: pointer; padding-inline-end: 16px; }
+  .ln:hover { background: #f1efe9; }
+  .ln.sel { background: var(--sel); }
+  .ln .no { flex: none; width: 4.2em; text-align: right; padding-right: 1em; color: #b3ada3; user-select: none; }
+  .ln .tx { flex: 1; }
+  .w-g { color: var(--c-g); font-weight: 700; }
+  .w-m { color: var(--c-m); font-weight: 700; }
+  .w-ax { color: var(--c-ax); }
+  .w-arc { color: var(--c-arc); }
+  .w-fs { color: var(--c-fs); }
+  .w-t { color: var(--c-t); font-weight: 700; }
+  .w-n { color: var(--c-n); }
+  .w-p { color: var(--c-p); }
+  .w-cm { color: var(--c-cm); font-style: italic; }
+  .w-pct { color: var(--c-n); }
+  .hit { background: var(--hl); border-radius: 3px; outline: 1px solid #e8c900; }
+
+  /* ---------- מצב ריק ---------- */
+  .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; gap: 18px; }
+  .empty .icon { font-size: 70px; }
+  .empty h2 { margin: 0; font-size: 28px; }
+  .empty p { margin: 0; color: var(--muted); font-size: 18px; max-width: 520px; line-height: 1.6; }
+  .steps { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+  .step { background: var(--bg); border-radius: 12px; padding: 12px 16px; width: 170px; font-size: 15px; }
+  .step b { display: block; font-size: 24px; color: var(--accent); }
+  .drop-hint { font-size: 15px; color: var(--muted); }
+  body.dragging main { outline: 4px dashed var(--accent); outline-offset: -8px; border-radius: 20px; }
+
+  /* ---------- הסברים ---------- */
+  .explain { padding: 14px 16px; }
+  .explain h3 { font-size: 16px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .box { background: var(--bg); border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; }
+  .box .src { direction: ltr; text-align: left; font-family: Consolas, monospace; font-size: 16px; margin-bottom: 8px; overflow-wrap: anywhere; }
+  .box ul { margin: 0; padding: 0; list-style: none; }
+  .box li { padding: 4px 0; line-height: 1.5; }
+  .code-key { display: inline-block; direction: ltr; min-width: 3.6em; font-family: Consolas, monospace; font-weight: 700; }
+  .legend-item { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+  .legend-item:hover { background: var(--bg); }
+  .legend-item.on { background: var(--hl); }
+  .legend-item .d { flex: 1; line-height: 1.4; }
+  .legend-item .n { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .muted { color: var(--muted); }
+
+  dialog { border: 0; border-radius: 18px; padding: 24px; width: min(460px, 92vw); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  dialog::backdrop { background: rgba(30,28,24,.35); }
+  dialog h2 { margin: 0 0 6px; }
+  dialog input { width: 100%; font-size: 20px; padding: 12px; border: 2px solid var(--line); border-radius: 10px; margin: 12px 0 18px; }
+  dialog input:focus { outline: none; border-color: var(--accent); }
+  .dlg-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #23211d; color: #fff; padding: 12px 22px; border-radius: 12px; font-size: 17px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 10; white-space: nowrap; max-width: 92vw; }
+  .toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 1250px) {
+    main { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    #explainPanel { grid-column: 1 / -1; max-height: 340px; }
+  }
+  @media (max-width: 760px) {
+    main { display: flex; flex-direction: column; height: auto; padding: 10px 16px; }
+    #listPanel { max-height: 300px; }
+    #viewerPanel { min-height: 420px; }
+    header { padding: 10px 16px; }
+    header h1 { font-size: 19px; width: 100%; }
+  }
+  @media print {
+    header, #listPanel, #explainPanel, .tools-row { display: none !important; }
+    body, main { display: block; height: auto; background: #fff; padding: 0; }
+    .panel { border: 0; }
+    .scroll { overflow: visible; }
+    .ln.sel { background: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛠️ צופה קודי CNC</h1>
+  <button class="btn primary" id="btnOpen">📂 פתח תיקייה</button>
+  <button class="btn hidden" id="btnReopen" title="פתח שוב את התיקייה שפתחת בפעם הקודמת">↩️ התיקייה האחרונה</button>
+  <button class="btn hidden" id="btnReload" title="קרא שוב את הקבצים מהתיקייה">🔄 רענן</button>
+  <div class="seg" title="סוג המכונה – משפיע על הסבר הקודים">
+    <button data-machine="mill">כרסומת</button>
+    <button data-machine="lathe">מחרטה</button>
+  </div>
+  <div class="seg" title="גודל הכתב">
+    <button id="fontDown" aria-label="הקטן כתב">א−</button>
+    <button id="fontUp" aria-label="הגדל כתב">א+</button>
+  </div>
+</header>
+
+<main>
+  <!-- רשימת התוכניות -->
+  <section class="panel" id="listPanel">
+    <div class="panel-head">
+      <h2>התוכניות בתיקייה</h2>
+      <input class="search" id="search" type="search" placeholder="🔍 חיפוש לפי שם או תוכן…">
+      <div class="folder-name" id="folderName"></div>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="scroll"><ul class="file-list" id="fileList"></ul></div>
+  </section>
+
+  <!-- תצוגת הקוד -->
+  <section class="panel" id="viewerPanel">
+    <div class="empty" id="emptyState">
+      <div class="icon">📂</div>
+      <h2>ברוכים הבאים!</h2>
+      <p>התוכנה מציגה בצורה ברורה את קבצי התוכניות של המכונה, ומסבירה בעברית מה עושה כל קוד.</p>
+      <div class="steps">
+        <div class="step"><b>1</b>לוחצים על הכפתור<br>"פתח תיקייה"</div>
+        <div class="step"><b>2</b>בוחרים את התיקייה שבה שמורים הקודים</div>
+        <div class="step"><b>3</b>לוחצים על תוכנית מהרשימה כדי לראות אותה</div>
+      </div>
+      <button class="btn primary big" id="btnOpen2">📂 פתח תיקייה</button>
+      <div class="drop-hint">אפשר גם פשוט לגרור תיקייה לתוך החלון</div>
+    </div>
+
+    <div class="empty hidden" id="pickState">
+      <div class="icon">👈</div>
+      <h2>בחרו תוכנית מהרשימה</h2>
+      <p>לחיצה על תוכנית ברשימה תציג את הקוד שלה כאן.</p>
+    </div>
+
+    <div class="hidden" id="viewer" style="display:flex;flex-direction:column;min-height:0;flex:1">
+      <div class="viewer-head">
+        <div class="viewer-title">
+          <h2 id="vTitle"></h2>
+          <div class="sub" id="vSub"></div>
+          <div class="chips" id="vChips"></div>
+        </div>
+        <div class="tools-row">
+          <button class="btn" id="btnRename">✏️ שנה שם</button>
+          <button class="btn" id="btnCopy">📋 העתק</button>
+          <button class="btn" id="btnPrint">🖨️ הדפס</button>
+        </div>
+      </div>
+      <div class="scroll" id="codeScroll"><div class="code" id="code"></div></div>
+    </div>
+  </section>
+
+  <!-- הסברים -->
+  <aside class="panel" id="explainPanel">
+    <div class="scroll explain">
+      <h3>💡 הסבר השורה שנבחרה</h3>
+      <div class="box" id="lineExplain"><span class="muted">לחצו על שורה בקוד כדי לקבל הסבר בעברית.</span></div>
+
+      <h3>🔧 כלים בתוכנית</h3>
+      <div id="toolsList" class="box"><span class="muted">—</span></div>
+
+      <h3>📖 הקודים שמופיעים בתוכנית</h3>
+      <div class="muted" style="font-size:14px;margin-bottom:8px">לחיצה על קוד תסמן אותו בצהוב ותקפוץ למקום הבא שבו הוא מופיע.</div>
+      <div id="legend"><span class="muted">—</span></div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="renameDlg">
+  <form method="dialog">
+    <h2>✏️ שם לתוכנית</h2>
+    <div class="muted" id="renameFile"></div>
+    <input id="renameInput" autocomplete="off" placeholder="לדוגמה: מכסה עליון – גימור">
+    <div class="dlg-actions">
+      <button class="btn primary" value="save">💾 שמור</button>
+      <button class="btn" value="reset">↺ חזור לשם המקורי</button>
+      <button class="btn" value="cancel">ביטול</button>
+    </div>
+  </form>
+</dialog>
+
+<input type="file" id="dirInput" webkitdirectory directory multiple class="hidden">
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   מילון הקודים – הסבר בעברית לכל קוד G ו-M נפוץ
+   ===================================================================== */
+const G_MILL = {
+  "0": "תנועה מהירה (בלי לחתוך)",
+  "1": "תנועה ישרה תוך כדי חיתוך",
+  "2": "תנועה בקשת – עם כיוון השעון",
+  "3": "תנועה בקשת – נגד כיוון השעון",
+  "4": "השהיה – המכונה ממתינה זמן קצר",
+  "9": "עצירה מדויקת בסוף התנועה",
+  "10": "הזנת נתונים (אפסים / היסטים) מתוך התוכנית",
+  "15": "ביטול קואורדינטות קוטביות",
+  "16": "קואורדינטות קוטביות (זווית ורדיוס)",
+  "17": "עבודה במישור XY",
+  "18": "עבודה במישור XZ",
+  "19": "עבודה במישור YZ",
+  "20": "מידות באינצ'ים",
+  "21": "מידות במילימטרים",
+  "28": "חזרה לנקודת הבית של המכונה",
+  "30": "חזרה לנקודת ייחוס שנייה (למשל להחלפת כלי)",
+  "31": "תנועה עד מגע (מדידה בגשש)",
+  "40": "ביטול פיצוי רדיוס כלי",
+  "41": "פיצוי רדיוס כלי – שמאלה מהמסלול",
+  "42": "פיצוי רדיוס כלי – ימינה מהמסלול",
+  "43": "הפעלת פיצוי אורך כלי",
+  "44": "פיצוי אורך כלי בכיוון שלילי",
+  "49": "ביטול פיצוי אורך כלי",
+  "50": "ביטול הגדלה / הקטנה",
+  "51": "הגדלה / הקטנה של המסלול",
+  "52": "אפס מקומי זמני",
+  "53": "תנועה לפי קואורדינטות המכונה",
+  "54": "אפס עבודה מספר 1",
+  "55": "אפס עבודה מספר 2",
+  "56": "אפס עבודה מספר 3",
+  "57": "אפס עבודה מספר 4",
+  "58": "אפס עבודה מספר 5",
+  "59": "אפס עבודה מספר 6",
+  "54.1": "אפס עבודה נוסף (לפי מספר P)",
+  "61": "מצב עצירה מדויקת בכל פינה",
+  "64": "מצב חיתוך רציף (בלי עצירה בפינות)",
+  "65": "קריאה למאקרו (תת-תוכנית עם פרמטרים)",
+  "68": "סיבוב מערכת הצירים",
+  "69": "ביטול סיבוב מערכת הצירים",
+  "73": "מחזור קידוח מהיר עם שבירת שבב",
+  "74": "מחזור הברגה שמאלית",
+  "76": "מחזור קדיחה עדינה (Boring)",
+  "80": "ביטול מחזור קידוח",
+  "81": "מחזור קידוח פשוט",
+  "82": "מחזור קידוח עם השהיה בתחתית",
+  "83": "מחזור קידוח עמוק בשלבים (ניקור)",
+  "84": "מחזור הברגה (תבריג)",
+  "85": "מחזור קדיחה – יציאה בהזנה",
+  "86": "מחזור קדיחה – עצירת ציר בתחתית",
+  "87": "מחזור קדיחה אחורית",
+  "88": "מחזור קדיחה עם השהיה ועצירה",
+  "89": "מחזור קדיחה עם השהיה בתחתית",
+  "90": "מידות מוחלטות (ביחס לאפס)",
+  "91": "מידות יחסיות (ביחס למיקום הנוכחי)",
+  "92": "קביעת אפס לפי המיקום הנוכחי",
+  "93": "הזנה לפי זמן",
+  "94": "הזנה במילימטרים לדקה",
+  "95": "הזנה במילימטרים לסיבוב",
+  "96": "מהירות חיתוך קבועה",
+  "97": "סיבובים קבועים לדקה",
+  "98": "בסוף המחזור – חזרה לגובה ההתחלתי",
+  "99": "בסוף המחזור – חזרה לגובה R"
+};
+/* במחרטה חלק מהקודים אומרים משהו אחר */
+const G_LATHE = Object.assign({}, G_MILL, {
+  "28": "חזרה לנקודת הבית של המכונה",
+  "32": "חריטת הברגה",
+  "40": "ביטול פיצוי רדיוס קצה הסכין",
+  "41": "פיצוי רדיוס קצה הסכין – שמאלה",
+  "42": "פיצוי רדיוס קצה הסכין – ימינה",
+  "50": "הגבלת סיבובים מרבית / קביעת אפס",
+  "70": "מחזור גימור",
+  "71": "מחזור חריטה גסה לאורך",
+  "72": "מחזור חריטה גסה בפנים",
+  "73": "מחזור חריטה לפי צורה חוזרת",
+  "74": "מחזור קידוח / חריץ בפנים",
+  "75": "מחזור חריצה בקוטר",
+  "76": "מחזור הברגה בכמה מעברים",
+  "83": "מחזור קידוח בפנים",
+  "84": "מחזור הברגה בפנים",
+  "90": "מחזור חריטה פשוט",
+  "92": "מחזור הברגה פשוט",
+  "94": "מחזור חריטת פנים פשוט",
+  "96": "מהירות חיתוך קבועה (הסיבובים משתנים לפי הקוטר)",
+  "97": "סיבובים קבועים לדקה",
+  "98": "הזנה במילימטרים לדקה",
+  "99": "הזנה במילימטרים לסיבוב"
+});
+const M_CODES = {
+  "0": "עצירת התוכנית (ממשיכים בלחיצה על התחל)",
+  "1": "עצירה לפי בחירת המפעיל",
+  "2": "סוף התוכנית",
+  "3": "הפעלת הציר – עם כיוון השעון",
+  "4": "הפעלת הציר – נגד כיוון השעון",
+  "5": "עצירת הציר",
+  "6": "החלפת כלי",
+  "7": "הפעלת קירור ערפל",
+  "8": "הפעלת נוזל קירור",
+  "9": "כיבוי נוזל קירור",
+  "19": "כיוון הציר לזווית קבועה",
+  "30": "סוף התוכנית וחזרה להתחלה",
+  "48": "הפעלת כפתורי שינוי מהירות",
+  "49": "נעילת כפתורי שינוי מהירות",
+  "97": "קריאה לתת-תוכנית מקומית",
+  "98": "קריאה לתת-תוכנית",
+  "99": "סוף תת-תוכנית / חזרה"
+};
+const LETTERS = {
+  X: "מיקום בציר X", Y: "מיקום בציר Y", Z: "מיקום בציר Z (גובה)",
+  A: "סיבוב בציר A", B: "סיבוב בציר B", C: "סיבוב בציר C",
+  U: "תנועה יחסית בציר X", V: "תנועה יחסית בציר Y", W: "תנועה יחסית בציר Z",
+  I: "מרחק למרכז הקשת בציר X", J: "מרחק למרכז הקשת בציר Y", K: "מרחק למרכז הקשת בציר Z",
+  R: "רדיוס הקשת / גובה נסיגה", F: "קצב הזנה (מהירות ההתקדמות)", S: "מהירות סיבוב הציר",
+  T: "מספר כלי", H: "מספר פיצוי אורך כלי", D: "מספר פיצוי רדיוס כלי",
+  N: "מספר שורה", O: "מספר תוכנית", P: "פרמטר (זמן המתנה / מספר תת-תוכנית)",
+  Q: "פרמטר (עומק כל שלב)", L: "מספר חזרות", E: "פרמטר נוסף"
+};
+const LETTERS_LATHE = Object.assign({}, LETTERS, {
+  X: "קוטר (ציר X)", Z: "מיקום לאורך החלק (ציר Z)", U: "תנועה יחסית בקוטר", W: "תנועה יחסית לאורך"
+});
+
+/* =====================================================================
+   מצב התוכנה
+   ===================================================================== */
+const CODE_EXT = ["nc","tap","gcode","gc","ngc","cnc","txt","mpf","spf","min","eia","iso","ptp","prg","anc","fnc","pim","pit","h","dnc","mpr","nci","hnc"];
+const MAX_SIZE = 20 * 1024 * 1024;
+const S = {
+  files: [],          // {path, fileName, text, lines, autoName, progNo}
+  current: -1,
+  folder: "",
+  dirHandle: null,
+  machine: load("cncMachine", "mill"),
+  fontSize: +load("cncFont", "17"),
+  names: JSON.parse(load("cncNames", "{}")),
+  selLine: -1,
+  hiKey: null, hiPos: -1
+};
+function load(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }
+function save(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* =====================================================================
+   קריאת התיקייה
+   ===================================================================== */
+function isCodeFile(name) {
+  if (name.startsWith(".")) return false;
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return true;                       // קבצים בלי סיומת (נפוץ בבקרי פאנוק)
+  const ext = name.slice(dot + 1).toLowerCase();
+  return CODE_EXT.includes(ext) || /^\d+$/.test(ext);
+}
+
+async function readText(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  if (bytes.subarray(0, 4000).includes(0)) return null;     // קובץ בינארי – לא קוד
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+  catch { return new TextDecoder("windows-1255").decode(bytes); }  // קבצים ישנים בעברית
+}
+
+async function loadFiles(entries, folderName) {
+  // entries: [{path, file}]
+  const list = [];
+  for (const { path, file } of entries) {
+    if (!isCodeFile(file.name) || file.size > MAX_SIZE || file.size === 0) continue;
+    const text = await readText(file);
+    if (text == null) continue;
+    list.push(analyze(path, file.name, text));
+  }
+  list.sort((a, b) => a.path.localeCompare(b.path, "he", { numeric: true }));
+  S.files = list; S.folder = folderName; S.current = -1;
+  renderList();
+  $("emptyState").classList.add("hidden");
+  if (!list.length) {
+    showPanel("pickState");
+    $("pickState").querySelector("h2").textContent = "לא נמצאו קבצי קוד בתיקייה הזו";
+    $("pickState").querySelector("p").textContent = "נסו לבחור תיקייה אחרת.";
+  } else {
+    $("pickState").querySelector("h2").textContent = "בחרו תוכנית מהרשימה";
+    $("pickState").querySelector("p").textContent = "לחיצה על תוכנית ברשימה תציג את הקוד שלה כאן.";
+    openFile(0);
+  }
+  $("btnReload").classList.toggle("hidden", !S.dirHandle);
+  toast(`נטענו ${list.length} תוכניות`);
+}
+
+function analyze(path, fileName, text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  if (lines.length && lines[lines.length - 1] === "") lines.pop();
+  let autoName = "", progNo = "";
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    const l = lines[i].trim();
+    if (!progNo) {
+      const m = /^[O:](\d+)/i.exec(l) || /^<([^>]+)>/.exec(l);
+      if (m) progNo = (l[0] === "<" ? "" : "O") + m[1];
+    }
+    if (!autoName) {
+      const c = /\(([^)]*)\)/.exec(l) || /;\s*(.+)$/.exec(l);
+      if (c && c[1].trim()) autoName = c[1].trim();
+    }
+    if (autoName && progNo) break;
+  }
+  return { path, fileName, text, lines, autoName, progNo };
+}
+
+/* פתיחה דרך חלון בחירת תיקייה */
+async function pickFolder() {
+  if (window.showDirectoryPicker) {
+    try {
+      const h = await window.showDirectoryPicker({ mode: "read" });
+      await openHandle(h);
+      rememberHandle(h);
+    } catch (e) { if (e.name !== "AbortError") $("dirInput").click(); }
+  } else {
+    $("dirInput").click();
+  }
+}
+
+async function openHandle(h) {
+  S.dirHandle = h;
+  const entries = [];
+  async function walk(dir, prefix) {
+    for await (const [name, child] of dir.entries()) {
+      if (child.kind === "file") entries.push({ path: prefix + name, file: await child.getFile() });
+      else if (!name.startsWith(".")) await walk(child, prefix + name + "/");
+    }
+  }
+  await walk(h, "");
+  await loadFiles(entries, h.name);
+}
+
+$("dirInput").addEventListener("change", e => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  S.dirHandle = null;
+  const root = (files[0].webkitRelativePath || "").split("/")[0];
+  loadFiles(files.map(f => ({ path: (f.webkitRelativePath || f.name).split("/").slice(1).join("/") || f.name, file: f })), root);
+  e.target.value = "";
+});
+
+/* גרירת תיקייה לחלון */
+let dragDepth = 0;
+addEventListener("dragenter", e => { e.preventDefault(); dragDepth++; document.body.classList.add("dragging"); });
+addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
+addEventListener("dragover", e => e.preventDefault());
+addEventListener("drop", async e => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
+  const items = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  const entries = [];
+  const readAll = r => new Promise(res => { const out = []; const next = () => r.readEntries(b => { if (!b.length) res(out); else { out.push(...b); next(); } }, () => res(out)); next(); });
+  async function walk(entry, prefix) {
+    if (entry.isFile) entries.push({ path: prefix + entry.name, file: await new Promise((res, rej) => entry.file(res, rej)) });
+    else if (entry.isDirectory && !entry.name.startsWith(".")) for (const c of await readAll(entry.createReader())) await walk(c, prefix + entry.name + "/");
+  }
+  for (const it of items) {
+    if (it.isDirectory) { for (const c of await readAll(it.createReader())) await walk(c, ""); }
+    else await walk(it, "");
+  }
+  S.dirHandle = null;
+  loadFiles(entries, items.length === 1 && items[0].isDirectory ? items[0].name : "קבצים שנגררו");
+});
+
+/* זכירת התיקייה האחרונה (בדפדפני כרום / אדג') */
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("cncViewer", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function rememberHandle(h) {
+  try { const db = await idb(); db.transaction("kv", "readwrite").objectStore("kv").put(h, "lastDir"); } catch {}
+}
+async function getRemembered() {
+  try {
+    const db = await idb();
+    return await new Promise(res => { const r = db.transaction("kv").objectStore("kv").get("lastDir"); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+  } catch { return null; }
+}
+(async () => {
+  const h = await getRemembered();
+  if (h) { $("btnReopen").classList.remove("hidden"); $("btnReopen").textContent = "↩️ " + h.name; }
+})();
+$("btnReopen").onclick = async () => {
+  const h = await getRemembered(); if (!h) return;
+  try {
+    if (await h.queryPermission({ mode: "read" }) !== "granted" && await h.requestPermission({ mode: "read" }) !== "granted") return;
+    await openHandle(h);
+  } catch { toast("לא הצלחתי לפתוח – בחרו את התיקייה מחדש"); pickFolder(); }
+};
+$("btnReload").onclick = async () => {
+  if (!S.dirHandle) return;
+  const keep = S.files[S.current]?.path;
+  await openHandle(S.dirHandle);
+  const i = S.files.findIndex(f => f.path === keep);
+  if (i >= 0) openFile(i);
+};
+
+/* =====================================================================
+   רשימת התוכניות
+   ===================================================================== */
+const displayName = f => S.names[nameKey(f)] || f.autoName || f.fileName;
+const nameKey = f => S.folder + "/" + f.path;
+
+function renderList() {
+  const q = $("search").value.trim().toLowerCase();
+  const ul = $("fileList"); ul.innerHTML = "";
+  let shown = 0;
+  S.files.forEach((f, i) => {
+    const name = displayName(f);
+    if (q && !(name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q) || f.text.toLowerCase().includes(q))) return;
+    shown++;
+    const li = document.createElement("li");
+    li.className = "file" + (i === S.current ? " active" : "");
+    const custom = S.names[nameKey(f)] ? '<span class="tag">שם שלי</span>' : "";
+    li.innerHTML = `<div class="nm">${esc(name)}${custom}</div>
+      <div class="meta">📄 <bdi>${esc(f.path)}</bdi>${f.progNo ? " · <bdi>" + esc(f.progNo) + "</bdi>" : ""} · ${f.lines.length.toLocaleString("he")} שורות</div>`;
+    li.onclick = () => openFile(i);
+    ul.appendChild(li);
+  });
+  $("count").textContent = S.files.length ? (q ? `נמצאו ${shown} מתוך ${S.files.length}` : `${S.files.length} תוכניות`) : "";
+  $("folderName").textContent = S.folder ? "📁 " + S.folder : "עדיין לא נפתחה תיקייה";
+}
+$("search").addEventListener("input", renderList);
+
+/* =====================================================================
+   פירוק שורת קוד לחלקים
+   ===================================================================== */
+const WORD = /([A-Za-z])\s*([+-]?(?:\d+\.?\d*|\.\d+)|#\d+|\[[^\]\n]*\])/y;
+function tokenize(line) {
+  const out = []; let i = 0;
+  if (/^\s*%/.test(line)) return [{ t: "pct", s: line }];
+  while (i < line.length) {
+    const c = line[i];
+    if (c === "(") { let j = line.indexOf(")", i); if (j < 0) j = line.length - 1; out.push({ t: "cm", s: line.slice(i, j + 1) }); i = j + 1; continue; }
+    if (c === ";") { out.push({ t: "cm", s: line.slice(i) }); break; }
+    WORD.lastIndex = i;
+    const m = WORD.exec(line);
+    if (m) {
+      const L = m[1].toUpperCase(), v = m[2];
+      const num = parseFloat(v);
+      out.push({ t: "w", s: m[0], L, v, key: L + (isNaN(num) || v[0] === "#" ? v : String(num)) });
+      i = WORD.lastIndex; continue;
+    }
+    out.push({ t: "o", s: c }); i++;
+  }
+  return out;
+}
+function cls(L) {
+  if (L === "G") return "w-g"; if (L === "M") return "w-m";
+  if ("XYZABCUVW".includes(L)) return "w-ax"; if ("IJKR".includes(L)) return "w-arc";
+  if ("FS".includes(L)) return "w-fs"; if ("THD".includes(L)) return "w-t";
+  if ("NO".includes(L)) return "w-n"; return "w-p";
+}
+function explainWord(tk) {
+  const G = S.machine === "lathe" ? G_LATHE : G_MILL;
+  const LT = S.machine === "lathe" ? LETTERS_LATHE : LETTERS;
+  const n = tk.key.slice(1);
+  if (tk.L === "G") return G[n] || "קוד מיוחד של המכונה (לא מוכר לי)";
+  if (tk.L === "M") return M_CODES[n] || "פקודה מיוחדת של המכונה (לא מוכרת לי)";
+  const base = LT[tk.L] || "פרמטר";
+  return `${base}: ${tk.v}`;
+}
+
+/* =====================================================================
+   הצגת תוכנית
+   ===================================================================== */
+function showPanel(id) {
+  for (const p of ["emptyState", "pickState", "viewer"]) $(p).classList.toggle("hidden", p !== id);
+}
+
+function openFile(i) {
+  S.current = i; S.selLine = -1; S.hiKey = null; S.hiPos = -1;
+  const f = S.files[i];
+  showPanel("viewer");
+  $("vTitle").textContent = displayName(f);
+  $("vSub").innerHTML = "📄 <bdi>" + esc(f.path) + "</bdi>" + (f.autoName && S.names[nameKey(f)] ? " · " + esc(f.autoName) : "");
+  const kb = new Blob([f.text]).size / 1024;
+  $("vChips").innerHTML = [
+    f.progNo && `מספר תוכנית: <bdi>${esc(f.progNo)}</bdi>`,
+    `${f.lines.length.toLocaleString("he")} שורות`,
+    kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`
+  ].filter(Boolean).map(s => `<span class="chip">${s}</span>`).join("");
+
+  // צביעת הקוד
+  const html = [];
+  const counts = new Map();
+  const tools = [];
+  f.tokens = f.lines.map(tokenize);
+  f.tokens.forEach((toks, li) => {
+    let s = "";
+    for (const tk of toks) {
+      if (tk.t === "w") {
+        s += `<span class="${cls(tk.L)}" data-k="${esc(tk.key)}">${esc(tk.s)}</span>`;
+        if (tk.L === "G" || tk.L === "M") { const c = counts.get(tk.key) || { n: 0, first: li }; c.n++; counts.set(tk.key, c); }
+        if (tk.L === "T") {
+          const cm = toks.find(x => x.t === "cm") || (f.tokens[li + 1] || []).find(x => x.t === "cm");
+          if (!tools.some(t => t.key === tk.key)) tools.push({ key: tk.key, line: li, note: cm ? cm.s.replace(/^[(;]\s*|\)$/g, "").trim() : "" });
+        }
+      } else if (tk.t === "cm") s += `<span class="w-cm">${esc(tk.s)}</span>`;
+      else if (tk.t === "pct") s += `<span class="w-pct">${esc(tk.s)}</span>`;
+      else s += esc(tk.s);
+    }
+    html.push(`<div class="ln" data-i="${li}"><span class="no">${li + 1}</span><span class="tx">${s || " "}</span></div>`);
+  });
+  $("code").innerHTML = html.join("");
+  $("codeScroll").scrollTop = 0;
+
+  // כלים
+  $("toolsList").innerHTML = tools.length
+    ? "<ul>" + tools.map(t => `<li class="legend-item" data-line="${t.line}"><span class="code-key w-t">${esc(t.key)}</span><span class="d">${t.note ? esc(t.note) : '<span class="muted">ללא תיאור</span>'}</span></li>`).join("") + "</ul>"
+    : '<span class="muted">לא נמצאו החלפות כלי בתוכנית.</span>';
+  $("toolsList").querySelectorAll("[data-line]").forEach(el => el.onclick = () => selectLine(+el.dataset.line, true));
+
+  // מקרא קודים
+  const keys = [...counts.keys()].sort((a, b) => a[0] === b[0] ? parseFloat(a.slice(1)) - parseFloat(b.slice(1)) : (a[0] === "G" ? -1 : 1));
+  f.legend = keys.map(k => ({ key: k, n: counts.get(k).n }));
+  renderLegend();
+  $("lineExplain").innerHTML = '<span class="muted">לחצו על שורה בקוד כדי לקבל הסבר בעברית.</span>';
+  renderList();
+}
+
+function renderLegend() {
+  const f = S.files[S.current]; if (!f) return;
+  $("legend").innerHTML = f.legend.length ? f.legend.map(({ key, n }) => `
+    <div class="legend-item${S.hiKey === key ? " on" : ""}" data-k="${esc(key)}">
+      <span class="code-key ${key[0] === "G" ? "w-g" : "w-m"}">${esc(key)}</span>
+      <span class="d">${esc(explainWord({ L: key[0], key, v: key.slice(1) }))}</span>
+      <span class="n">${n}×</span>
+    </div>`).join("") : '<span class="muted">לא נמצאו קודי G או M.</span>';
+  $("legend").querySelectorAll(".legend-item").forEach(el => el.onclick = () => highlight(el.dataset.k));
+}
+
+function highlight(key) {
+  const code = $("code");
+  if (S.hiKey !== key) {
+    code.querySelectorAll(".hit").forEach(e => e.classList.remove("hit"));
+    code.querySelectorAll(`[data-k="${CSS.escape(key)}"]`).forEach(e => e.classList.add("hit"));
+    S.hiKey = key; S.hiPos = -1; renderLegend();
+  }
+  const hits = code.querySelectorAll(".hit");
+  if (!hits.length) return;
+  S.hiPos = (S.hiPos + 1) % hits.length;
+  const ln = hits[S.hiPos].closest(".ln");
+  selectLine(+ln.dataset.i, true);
+  toast(`${key} – מקום ${S.hiPos + 1} מתוך ${hits.length}`);
+}
+
+function selectLine(i, scroll) {
+  const f = S.files[S.current]; if (!f) return;
+  const code = $("code");
+  code.querySelector(".ln.sel")?.classList.remove("sel");
+  const el = code.children[i]; if (!el) return;
+  el.classList.add("sel"); S.selLine = i;
+  if (scroll) el.scrollIntoView({ block: "center" });
+  $("explainPanel").querySelector(".scroll").scrollTop = 0;
+  const toks = f.tokens[i];
+  const items = [];
+  for (const tk of toks) {
+    if (tk.t === "w") items.push(`<li><span class="code-key ${cls(tk.L)}">${esc(tk.s.replace(/\s+/g, ""))}</span> ${esc(explainWord(tk))}</li>`);
+    else if (tk.t === "cm") items.push(`<li><span class="code-key w-cm">( )</span> הערה: ${esc(tk.s.replace(/^[(;]\s*|\)$/g, ""))}</li>`);
+    else if (tk.t === "pct") items.push(`<li><span class="code-key w-pct">%</span> סימן התחלה / סוף של הקובץ</li>`);
+  }
+  $("lineExplain").innerHTML = `<div class="muted" style="font-size:14px">שורה ${i + 1}</div>
+    <div class="src">${esc(f.lines[i]) || "&nbsp;"}</div>
+    ${items.length ? "<ul>" + items.join("") + "</ul>" : '<span class="muted">שורה ריקה.</span>'}`;
+}
+$("code").addEventListener("click", e => { const ln = e.target.closest(".ln"); if (ln) selectLine(+ln.dataset.i, false); });
+
+/* מקלדת: חיצים למעלה/למטה עוברים בין שורות */
+addEventListener("keydown", e => {
+  if (S.current < 0 || e.target.matches("input") || $("renameDlg").open) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const n = S.files[S.current].lines.length;
+    selectLine(Math.max(0, Math.min(n - 1, S.selLine + (e.key === "ArrowDown" ? 1 : -1))), true);
+  }
+});
+
+/* =====================================================================
+   כפתורים
+   ===================================================================== */
+$("btnOpen").onclick = $("btnOpen2").onclick = pickFolder;
+
+$("btnRename").onclick = () => {
+  const f = S.files[S.current]; if (!f) return;
+  $("renameFile").textContent = "קובץ: " + f.path;
+  $("renameInput").value = displayName(f);
+  $("renameDlg").showModal(); $("renameInput").select();
+};
+$("renameDlg").addEventListener("close", () => {
+  const f = S.files[S.current]; const v = $("renameDlg").returnValue;
+  if (!f || v === "cancel" || !v) return;
+  const k = nameKey(f), name = $("renameInput").value.trim();
+  if (v === "reset" || !name || name === (f.autoName || f.fileName)) delete S.names[k]; else S.names[k] = name;
+  save("cncNames", JSON.stringify(S.names));
+  openFile(S.current);
+  toast("השם נשמר ✔");
+});
+$("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("renameDlg").close("save"); } });
+
+$("btnCopy").onclick = async () => {
+  const f = S.files[S.current]; if (!f) return;
+  try { await navigator.clipboard.writeText(f.text); toast("הקוד הועתק ✔"); }
+  catch { toast("לא הצלחתי להעתיק"); }
+};
+$("btnPrint").onclick = () => print();
+
+function setMachine(m) {
+  S.machine = m; save("cncMachine", m);
+  document.querySelectorAll("[data-machine]").forEach(b => b.classList.toggle("on", b.dataset.machine === m));
+  if (S.current >= 0) { renderLegend(); if (S.selLine >= 0) selectLine(S.selLine, false); }
+}
+document.querySelectorAll("[data-machine]").forEach(b => b.onclick = () => setMachine(b.dataset.machine));
+
+function setFont(px) {
+  S.fontSize = Math.max(12, Math.min(30, px)); save("cncFont", S.fontSize);
+  document.documentElement.style.setProperty("--code-size", S.fontSize + "px");
+}
+$("fontUp").onclick = () => setFont(S.fontSize + 2);
+$("fontDown").onclick = () => setFont(S.fontSize - 2);
+
+setMachine(S.machine);
+setFont(S.fontSize);
+renderList();
+</script>
+</body>
+</html>
